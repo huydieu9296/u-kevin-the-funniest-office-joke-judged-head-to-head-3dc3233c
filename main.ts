@@ -1,12 +1,31 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const INPUT = "./entry.txt";
-const OUTPUT = "/output/entry.txt";
+// Resolve paths relative to this script file, not the working directory:
+// the judge runs `node /bot/main.ts` from a different CWD, so a
+// CWD-relative "./entry.txt" would throw ENOENT and exit 1.
+const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+const INPUT = join(SCRIPT_DIR, "entry.txt");
+const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const OUTPUT = join(OUTPUT_DIR, "entry.txt");
 const MIN_CHARS = 1;
 const MAX_CHARS = 200;
 
-const raw = readFileSync(INPUT, "utf8");
+let raw: string;
+try {
+  raw = readFileSync(INPUT, "utf8");
+} catch (error) {
+  // Name the resolved path so a future failure is diagnosable at a glance:
+  // INPUT is script-relative, so this should only fail if entry.txt itself
+  // is missing next to main.ts (not because of the caller's working dir).
+  console.error(
+    `Failed to read entry file at ${INPUT} (resolved relative to main.ts in ${SCRIPT_DIR}): ${
+      error instanceof Error ? error.message : String(error)
+    }`
+  );
+  process.exit(1);
+}
 const entry = raw.trim();
 
 if (entry.length < MIN_CHARS || entry.length > MAX_CHARS) {
@@ -33,7 +52,7 @@ writeFileSync(OUTPUT, outputText, "utf8");
 
 const written = readFileSync(OUTPUT, "utf8");
 if (written !== raw) {
-  console.error("Verification failed: /output/entry.txt does not match entry.txt.");
+  console.error(`Verification failed: ${OUTPUT} does not match ${INPUT}.`);
   process.exit(1);
 }
 
